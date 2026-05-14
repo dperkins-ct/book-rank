@@ -1,0 +1,139 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: bookrank-postgres
+    environment:
+      POSTGRES_DB: bookrank
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d bookrank"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bookrank-network
+    restart: unless-stopped
+
+  # Redis (for future caching and sessions)
+  redis:
+    image: redis:7-alpine
+    container_name: bookrank-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bookrank-network
+    restart: unless-stopped
+
+  # Go Backend API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bookrank-api
+    environment:
+      # Database Configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: bookrank
+      DB_SSL_MODE: disable
+
+      # Database Connection Pool
+      DB_MAX_OPEN_CONNS: 25
+      DB_MAX_IDLE_CONNS: 5
+      DB_CONN_MAX_LIFETIME: 1h
+      DB_CONN_MAX_IDLE_TIME: 10m
+      DB_QUERY_TIMEOUT: 30s
+
+      # Server Configuration
+      PORT: 8080
+
+      # JWT Configuration
+      JWT_SECRET: development-secret-change-in-production
+      JWT_EXPIRATION: 24h
+
+      # Redis Configuration (for future use)
+      REDIS_URL: redis://redis:6379
+
+      # Application Environment
+      ENV: development
+      LOG_LEVEL: info
+      LOG_FORMAT: json
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - bookrank-network
+    volumes:
+      - .:/app
+    restart: unless-stopped
+    profiles:
+      - full
+
+  # PostgreSQL Admin (optional - for database management)
+  adminer:
+    image: adminer:latest
+    container_name: bookrank-adminer
+    ports:
+      - "8081:8080"
+    depends_on:
+      - postgres
+    networks:
+      - bookrank-network
+    restart: unless-stopped
+
+  # Development services (PostgreSQL only)
+  postgres-dev:
+    image: postgres:16-alpine
+    container_name: bookrank-postgres-dev
+    environment:
+      POSTGRES_DB: bookrank
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d bookrank"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bookrank-network
+    restart: unless-stopped
+    profiles:
+      - dev
+      - default
+
+volumes:
+  postgres_data:
+  postgres_data_dev:
+  redis_data:
+
+networks:
+  bookrank-network:
+    driver: bridge

@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go mod *)",
+      "Bash(go build *)",
+      "Bash(go test *)",
+      "Bash(docker-compose *)",
+      "Bash(docker compose *)",
+      "Bash(chmod +x *)",
+      "Bash(make test-coverage *)",
+      "Bash(brew install *)",
+      "Bash(curl -s http://localhost:8080/health)",
+      "Bash(make build *)",
+      "Bash(./bookrank)",
+      "Bash(./server)",
+      "Bash(curl -s http://localhost:8080/)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(pkill -f \"bookrank\\\\|server\")",
+      "Bash(pkill -f server)",
+      "Bash(curl -s -X OPTIONS -H \"Origin: http://localhost:3000\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: Content-Type\" http://localhost:8080/auth/register -I)",
+      "Bash(curl *)",
+      "Bash(pkill -9 -f \"./server\")"
+    ]
+  }
+}

@@ -359,11 +359,17 @@ func TestBookRepository_GetBookStats(t *testing.T) {
 	}
 	repo.Create(testBook)
 
-	// Create test rankings
+	// Create additional test users for rankings
+	user2 := models.User{Username: "testuser2", PasswordHash: "hash2"}
+	user3 := models.User{Username: "testuser3", PasswordHash: "hash3"}
+	db.Create(&user2)
+	db.Create(&user3)
+
+	// Create test rankings with different users
 	rankings := []*models.Ranking{
 		{UserID: user.ID, BookID: testBook.ID, Score: 1500},
-		{UserID: user.ID, BookID: testBook.ID, Score: 1600},
-		{UserID: user.ID, BookID: testBook.ID, Score: 1400},
+		{UserID: user2.ID, BookID: testBook.ID, Score: 1600},
+		{UserID: user3.ID, BookID: testBook.ID, Score: 1400},
 	}
 	for _, ranking := range rankings {
 		db.Create(ranking)

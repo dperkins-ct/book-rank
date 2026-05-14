@@ -118,6 +118,10 @@ func (m *MockBookRepository) GetMetadataByBookID(bookID uint) ([]*models.BookMet
 	return nil, nil
 }
 
+func (m *MockBookRepository) UpsertMetadata(metadata *models.BookMetadata) error {
+	return nil
+}
+
 func (m *MockBookRepository) GetBooksByRatingRange(minRating, maxRating int, limit, offset int) ([]*models.Book, error) {
 	return nil, nil
 }
@@ -142,10 +146,36 @@ func TestBookService_CreateBook(t *testing.T) {
 			userID:  1,
 			wantErr: false,
 		},
+		"valid_book_no_genre": {
+			request: &BookCreateRequest{
+				Title:  "Test Book",
+				Author: "Test Author",
+			},
+			userID:  1,
+			wantErr: false,
+		},
+		"valid_book_with_metadata_fetch": {
+			request: &BookCreateRequest{
+				Title:         "Test Book",
+				Author:        "Test Author",
+				FetchMetadata: true,
+			},
+			userID:  1,
+			wantErr: false,
+		},
 		"empty_title": {
 			request: &BookCreateRequest{
 				Title:  "",
 				Author: "Test Author",
+				Genre:  "Fiction",
+			},
+			userID:  1,
+			wantErr: true,
+		},
+		"empty_author": {
+			request: &BookCreateRequest{
+				Title:  "Test Book",
+				Author: "",
 				Genre:  "Fiction",
 			},
 			userID:  1,
@@ -180,6 +210,12 @@ func TestBookService_CreateBook(t *testing.T) {
 				}
 				if book.CreatedBy != tc.userID {
 					t.Errorf("Expected CreatedBy %d, got %d", tc.userID, book.CreatedBy)
+				}
+				if book.Author != tc.request.Author {
+					t.Errorf("Expected author %s, got %s", tc.request.Author, book.Author)
+				}
+				if book.Genre != tc.request.Genre {
+					t.Errorf("Expected genre %s, got %s", tc.request.Genre, book.Genre)
 				}
 			}
 		})
@@ -448,5 +484,21 @@ func TestBookService_GetBooks(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+func TestBookService_UpsertMetadata(t *testing.T) {
+	mockRepo := NewMockBookRepository()
+	service := NewBookService(mockRepo)
+
+	// Test that UpsertMetadata method exists and can be called
+	// This verifies the interface compatibility
+	err := service.bookRepo.UpsertMetadata(&models.BookMetadata{
+		BookID:     1,
+		Source:     "test",
+		ExternalID: "test-id",
+	})
+
+	if err != nil {
+		t.Errorf("UpsertMetadata should not fail in mock: %v", err)
 	}
 }

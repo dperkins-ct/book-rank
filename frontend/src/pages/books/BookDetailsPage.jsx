@@ -83,7 +83,7 @@ function BookDetailsPage() {
     return (
       <div className="text-center py-8">
         <h2 className="text-lg font-medium text-gray-900">Book not found</h2>
-        <p className="text-gray-500 mt-1">The book you're looking for doesn't exist.</p>
+        <p className="text-gray-500 mt-1">The book you&apos;re looking for doesn&apos;t exist.</p>
         <Button
           as={Link}
           to="/books"

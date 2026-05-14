@@ -9,6 +9,7 @@ import (
 
 	"bookrank/internal/api/auth"
 	"bookrank/internal/api/book"
+	"bookrank/internal/api/comparison"
 	"bookrank/internal/api/middleware"
 	"bookrank/internal/api/recommendation"
 	"bookrank/internal/repository"
@@ -53,6 +54,7 @@ func (rt *Router) SetupRoutes() *mux.Router {
 	// Create handlers
 	authHandler := auth.NewAuthHandler(rt.db, rt.authService, rt.logger)
 	bookHandler := book.NewHandlers(services.Book)
+	comparisonHandler := comparison.NewHandler(services.Comparison)
 	recommendationHandler := recommendation.NewHandler(services.Recommendation)
 
 	// Global middleware (applied to all routes)
@@ -80,6 +82,16 @@ func (rt *Router) SetupRoutes() *mux.Router {
 	// API v1 routes (for future expansion)
 	v1Router := protectedRouter.PathPrefix("/v1").Subrouter()
 
+	// Comparisons routes (direct under /api for frontend compatibility)
+	comparisonsRouter := protectedRouter.PathPrefix("/comparisons").Subrouter()
+	comparisonsRouter.HandleFunc("", comparisonHandler.GetComparisonHistory).Methods("GET")
+	comparisonsRouter.HandleFunc("", comparisonHandler.SubmitComparison).Methods("POST")
+	comparisonsRouter.HandleFunc("/pending", comparisonHandler.GetPendingComparisons).Methods("GET")
+	comparisonsRouter.HandleFunc("/history", comparisonHandler.GetComparisonHistory).Methods("GET")
+	comparisonsRouter.HandleFunc("/book/{bookId:[0-9]+}", comparisonHandler.GetBookComparisons).Methods("GET")
+	comparisonsRouter.HandleFunc("/recalculate", comparisonHandler.RecalculateRatings).Methods("POST")
+	comparisonsRouter.HandleFunc("/onboarding-status", comparisonHandler.CheckOnboardingStatus).Methods("GET")
+
 	// Books routes
 	booksRouter := protectedRouter.PathPrefix("/books").Subrouter()
 	booksRouter.HandleFunc("", bookHandler.GetBooks).Methods("GET")
@@ -95,8 +107,15 @@ func (rt *Router) SetupRoutes() *mux.Router {
 	v1Router.HandleFunc("/rankings", rt.notImplementedHandler).Methods("GET", "POST")
 	v1Router.HandleFunc("/rankings/{id}", rt.notImplementedHandler).Methods("GET", "PUT", "DELETE")
 
-	// Comparisons routes (placeholder for future implementation)
-	v1Router.HandleFunc("/comparisons", rt.notImplementedHandler).Methods("GET", "POST")
+	// Comparisons routes (also under v1 for future compatibility)
+	v1ComparisonsRouter := v1Router.PathPrefix("/comparisons").Subrouter()
+	v1ComparisonsRouter.HandleFunc("", comparisonHandler.GetComparisonHistory).Methods("GET")
+	v1ComparisonsRouter.HandleFunc("", comparisonHandler.SubmitComparison).Methods("POST")
+	v1ComparisonsRouter.HandleFunc("/pending", comparisonHandler.GetPendingComparisons).Methods("GET")
+	v1ComparisonsRouter.HandleFunc("/history", comparisonHandler.GetComparisonHistory).Methods("GET")
+	v1ComparisonsRouter.HandleFunc("/book/{bookId:[0-9]+}", comparisonHandler.GetBookComparisons).Methods("GET")
+	v1ComparisonsRouter.HandleFunc("/recalculate", comparisonHandler.RecalculateRatings).Methods("POST")
+	v1ComparisonsRouter.HandleFunc("/onboarding-status", comparisonHandler.CheckOnboardingStatus).Methods("GET")
 
 	// Recommendations routes
 	recommendationsRouter := v1Router.PathPrefix("/recommendations").Subrouter()

@@ -135,6 +135,10 @@ func (m *MockBookRepository) GetMetadataByBookID(bookID uint) ([]*models.BookMet
 	return []*models.BookMetadata{}, nil
 }
 
+func (m *MockBookRepository) UpsertMetadata(metadata *models.BookMetadata) error {
+	return nil
+}
+
 func (m *MockBookRepository) GetBooksByRatingRange(minRating, maxRating int, limit, offset int) ([]*models.Book, error) {
 	return []*models.Book{}, nil
 }

@@ -1,15 +1,12 @@
-import React from 'react'
 import { Link } from 'react-router-dom'
 import {
   BookOpenIcon,
-  StarIcon,
-  EyeIcon,
   PencilIcon,
   TrashIcon
 } from '@heroicons/react/24/outline'
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid'
 import Button from '../common/Button'
-import { formatDate, formatRating, getRatingBadgeColor } from '../../utils/formatters'
+import { formatDate, formatRating } from '../../utils/formatters'
 
 function BookCard({ book, onEdit, onDelete, showActions = false }) {
   const coverImage = book.metadata?.find(m => m.additional_data?.cover_url)?.additional_data?.cover_url

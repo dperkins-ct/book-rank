@@ -2,6 +2,7 @@ package comparison
 
 import (
 	"bookrank/internal/api/middleware"
+	"bookrank/internal/models"
 	"bookrank/internal/service"
 	"encoding/json"
 	"net/http"
@@ -22,6 +23,13 @@ func NewHandler(comparisonService *service.ComparisonService) *Handler {
 	}
 }
 
+// FrontendComparisonRequest represents the request format from the frontend
+type FrontendComparisonRequest struct {
+	BookAID  uint `json:"book_a_id" validate:"required"`
+	BookBID  uint `json:"book_b_id" validate:"required"`
+	WinnerID uint `json:"winner_id" validate:"required"`
+}
+
 // SubmitComparison handles POST /api/comparisons
 func (h *Handler) SubmitComparison(w http.ResponseWriter, r *http.Request) {
 	// Get user from context (set by auth middleware)
@@ -31,14 +39,29 @@ func (h *Handler) SubmitComparison(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req service.ComparisonRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var frontendReq FrontendComparisonRequest
+	if err := json.NewDecoder(r.Body).Decode(&frontendReq); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// Set user ID from auth context
-	req.UserID = claims.UserID
+	// Convert frontend request to service request format
+	var preference models.ComparisonPreference
+	if frontendReq.WinnerID == frontendReq.BookAID {
+		preference = models.PreferenceBookA
+	} else if frontendReq.WinnerID == frontendReq.BookBID {
+		preference = models.PreferenceBookB
+	} else {
+		http.Error(w, "Winner ID must match either book_a_id or book_b_id", http.StatusBadRequest)
+		return
+	}
+
+	req := service.ComparisonRequest{
+		UserID:     claims.UserID,
+		BookAID:    frontendReq.BookAID,
+		BookBID:    frontendReq.BookBID,
+		Preference: preference,
+	}
 
 	response, err := h.comparisonService.SubmitComparison(&req)
 	if err != nil {
@@ -86,7 +109,7 @@ func (h *Handler) GetPendingComparisons(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-// GetComparisonHistory handles GET /api/comparisons/history
+// GetComparisonHistory handles GET /api/comparisons and GET /api/comparisons/history
 func (h *Handler) GetComparisonHistory(w http.ResponseWriter, r *http.Request) {
 	// Get user from context
 	claims, ok := middleware.GetUserFromContext(r.Context())
@@ -96,10 +119,23 @@ func (h *Handler) GetComparisonHistory(w http.ResponseWriter, r *http.Request) {
 	}
 	userID := claims.UserID
 
+	// Parse limit parameter
+	limit := 0 // 0 means no limit for history
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+			limit = parsedLimit
+		}
+	}
+
 	comparisons, err := h.comparisonService.GetComparisonHistory(userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Apply limit if specified
+	if limit > 0 && len(comparisons) > limit {
+		comparisons = comparisons[:limit]
 	}
 
 	w.Header().Set("Content-Type", "application/json")

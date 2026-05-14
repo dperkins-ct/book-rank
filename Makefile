@@ -108,9 +108,9 @@ setup: deps docker-up-dev ## Setup development environment
 	@echo "Run 'make run' to start the application"
 
 start: ## Start everything (database + backend + frontend) - One command setup
-	@echo "🚀 Starting BookRank full-stack development environment..."
+	@echo "Starting BookRank full-stack development environment..."
 	@echo "1. Starting Colima..."
-	@colima start 2>/dev/null || echo "   Colima already running ✅"
+	@colima start 2>/dev/null || echo "   Colima already running - OK"
 	@echo "2. Starting database services..."
 	@$(DOCKER_COMPOSE) up -d postgres redis
 	@echo "3. Waiting for database to be ready..."
@@ -122,31 +122,31 @@ start: ## Start everything (database + backend + frontend) - One command setup
 	@echo "6. Starting React frontend..."
 	@cd frontend && npm run dev &
 	@echo ""
-	@echo "🎉 BookRank is now running!"
-	@echo "   📱 Frontend (React): http://localhost:3000"
-	@echo "   🔧 Backend API: http://localhost:8080"
-	@echo "   ❤️ Health check: http://localhost:8080/health"
+	@echo "BookRank is now running!"
+	@echo "   Frontend (React): http://localhost:3000"
+	@echo "   Backend API: http://localhost:8080"
+	@echo "   Health check: http://localhost:8080/health"
 	@echo ""
 	@echo "Press Ctrl+C to stop (you may need to run 'make stop-all' to cleanup)"
 
 start-backend-only: ## Start just backend (database + API)
-	@echo "🚀 Starting BookRank backend..."
-	@colima start 2>/dev/null || echo "Colima already running ✅"
+	@echo "Starting BookRank backend..."
+	@colima start 2>/dev/null || echo "Colima already running - OK"
 	@$(DOCKER_COMPOSE) up -d postgres redis
 	@sleep 5
 	@$(MAKE) run
 
 start-frontend-only: ## Start just frontend (assumes backend is running)
-	@echo "🚀 Starting BookRank frontend..."
+	@echo "Starting BookRank frontend..."
 	@$(MAKE) frontend-dev
 
 stop-all: ## Stop everything (application + database + colima)
-	@echo "🛑 Stopping BookRank development environment..."
+	@echo "Stopping BookRank development environment..."
 	@echo "1. Stopping database services..."
 	@$(DOCKER_COMPOSE) down
 	@echo "2. Optionally stopping colima (uncomment if desired)..."
 	@# colima stop
-	@echo "✅ Environment stopped"
+	@echo "Environment stopped"
 
 restart: stop-all start ## Restart everything
 

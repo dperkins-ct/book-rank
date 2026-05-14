@@ -74,8 +74,35 @@ func NewBookRepository(db *gorm.DB) BookRepository {
 	return &bookRepository{db: db}
 }
 
+// Helper functions for database-agnostic operations
+func (r *bookRepository) ilike(field, value string) string {
+	// Check if we're using SQLite
+	if r.db.Dialector.Name() == "sqlite" {
+		return fmt.Sprintf("%s LIKE ?", field)
+	}
+	// Use ILIKE for PostgreSQL
+	return fmt.Sprintf("%s ILIKE ?", field)
+}
+
+func (r *bookRepository) floorDiv(field string, divisor int) string {
+	// Check if we're using SQLite
+	if r.db.Dialector.Name() == "sqlite" {
+		return fmt.Sprintf("CAST(%s / %d AS INTEGER)", field, divisor)
+	}
+	// Use FLOOR for PostgreSQL
+	return fmt.Sprintf("FLOOR(%s / %d)", field, divisor)
+}
+
 // Create creates a new book in the database
 func (r *bookRepository) Create(book *models.Book) error {
+	// Validate required fields
+	if book.Title == "" {
+		return errors.New("title is required")
+	}
+	if book.Author == "" {
+		return errors.New("author is required")
+	}
+
 	return r.db.Create(book).Error
 }
 
@@ -144,11 +171,11 @@ func (r *bookRepository) GetAll(options BookQueryOptions) ([]*models.Book, int64
 // applyFilters applies filter conditions to the query
 func (r *bookRepository) applyFilters(query *gorm.DB, filter *BookFilter) *gorm.DB {
 	if filter.Genre != "" {
-		query = query.Where("genre ILIKE ?", "%"+filter.Genre+"%")
+		query = query.Where(r.ilike("genre", filter.Genre), "%"+filter.Genre+"%")
 	}
 
 	if filter.Author != "" {
-		query = query.Where("author ILIKE ?", "%"+filter.Author+"%")
+		query = query.Where(r.ilike("author", filter.Author), "%"+filter.Author+"%")
 	}
 
 	if filter.CreatedBy != nil {
@@ -157,8 +184,11 @@ func (r *bookRepository) applyFilters(query *gorm.DB, filter *BookFilter) *gorm.
 
 	if filter.Search != "" {
 		searchQuery := "%" + filter.Search + "%"
-		query = query.Where("title ILIKE ? OR author ILIKE ? OR description ILIKE ?",
-			searchQuery, searchQuery, searchQuery)
+		searchCondition := fmt.Sprintf("(%s OR %s OR %s)",
+			r.ilike("title", filter.Search),
+			r.ilike("author", filter.Search),
+			r.ilike("description", filter.Search))
+		query = query.Where(searchCondition, searchQuery, searchQuery, searchQuery)
 	}
 
 	// Rating filters require joining with rankings table
@@ -225,9 +255,13 @@ func (r *bookRepository) Search(query string, limit, offset int) ([]*models.Book
 
 	searchQuery := "%" + query + "%"
 
+	searchCondition := fmt.Sprintf("(%s OR %s OR %s)",
+		r.ilike("title", query),
+		r.ilike("author", query),
+		r.ilike("description", query))
+
 	baseQuery := r.db.Model(&models.Book{}).
-		Where("title ILIKE ? OR author ILIKE ? OR description ILIKE ?",
-			searchQuery, searchQuery, searchQuery)
+		Where(searchCondition, searchQuery, searchQuery, searchQuery)
 
 	// Count total results
 	if err := baseQuery.Count(&totalCount).Error; err != nil {
@@ -248,7 +282,7 @@ func (r *bookRepository) Search(query string, limit, offset int) ([]*models.Book
 func (r *bookRepository) GetByGenre(genre string, limit, offset int) ([]*models.Book, error) {
 	var books []*models.Book
 	err := r.db.Preload("Creator").
-		Where("genre ILIKE ?", "%"+genre+"%").
+		Where(r.ilike("genre", genre), "%"+genre+"%").
 		Limit(limit).
 		Offset(offset).
 		Order("created_at DESC").
@@ -260,7 +294,7 @@ func (r *bookRepository) GetByGenre(genre string, limit, offset int) ([]*models.
 func (r *bookRepository) GetByAuthor(author string, limit, offset int) ([]*models.Book, error) {
 	var books []*models.Book
 	err := r.db.Preload("Creator").
-		Where("author ILIKE ?", "%"+author+"%").
+		Where(r.ilike("author", author), "%"+author+"%").
 		Limit(limit).
 		Offset(offset).
 		Order("created_at DESC").
@@ -304,7 +338,7 @@ func (r *bookRepository) GetBookStats(bookID uint) (*BookStats, error) {
 	}
 
 	err = r.db.Model(&models.Ranking{}).
-		Select("FLOOR(score/300) as score_range, COUNT(*) as count").
+		Select(fmt.Sprintf("%s as score_range, COUNT(*) as count", r.floorDiv("score", 300))).
 		Where("book_id = ?", bookID).
 		Group("score_range").
 		Scan(&distribution).Error

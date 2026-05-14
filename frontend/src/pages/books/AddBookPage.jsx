@@ -111,7 +111,7 @@ function AddBookPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Add New Book</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Just enter the title and author. We'll handle the rest automatically.
+          Just enter the title and author. We&apos;ll handle the rest automatically.
         </p>
       </div>
 
@@ -190,9 +190,9 @@ function AddBookPage() {
               <div className="text-sm text-blue-700">
                 <strong>How it works:</strong>
                 <ul className="mt-2 list-disc list-inside space-y-1">
-                  <li>We'll first check if this book already exists in our archive</li>
-                  <li>If found, we'll add it to your library instantly</li>
-                  <li>If not found, we'll create it and automatically fetch publication year, genre, and other metadata</li>
+                  <li>We&apos;ll first check if this book already exists in our archive</li>
+                  <li>If found, we&apos;ll add it to your library instantly</li>
+                  <li>If not found, we&apos;ll create it and automatically fetch publication year, genre, and other metadata</li>
                 </ul>
               </div>
             </div>

@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"log/slog"
+	"regexp"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -17,13 +18,15 @@ const (
 	MinUsernameLength = 3
 	// MaxUsernameLength is the maximum allowed username length
 	MaxUsernameLength = 20
+	// MinPasswordLength is the minimum allowed password length
+	MinPasswordLength = 8
 )
 
 var (
 	// ErrInvalidUsername is returned when username validation fails
 	ErrInvalidUsername = errors.New("username must be 3-20 characters long")
 	// ErrInvalidPassword is returned when password validation fails
-	ErrInvalidPassword = errors.New("password cannot be empty")
+	ErrInvalidPassword = errors.New("password must be at least 8 characters long and contain special characters")
 	// ErrInvalidCredentials is returned when login credentials are invalid
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	// ErrUserAlreadyExists is returned when trying to register an existing user
@@ -59,6 +62,33 @@ func (s *AuthService) ValidatePassword(password string) error {
 		s.logger.Debug("Password validation failed", "reason", "empty")
 		return ErrInvalidPassword
 	}
+
+	if len(password) < MinPasswordLength {
+		s.logger.Debug("Password validation failed", "reason", "too_short", "length", len(password))
+		return ErrInvalidPassword
+	}
+
+	// Check if password is only letters
+	onlyLetters := regexp.MustCompile(`^[a-zA-Z]+$`).MatchString(password)
+	if onlyLetters {
+		s.logger.Debug("Password validation failed", "reason", "only_letters")
+		return ErrInvalidPassword
+	}
+
+	// Check if password is only numbers
+	onlyNumbers := regexp.MustCompile(`^[0-9]+$`).MatchString(password)
+	if onlyNumbers {
+		s.logger.Debug("Password validation failed", "reason", "only_numbers")
+		return ErrInvalidPassword
+	}
+
+	// Check for at least one special character
+	hasSpecial := regexp.MustCompile(`[^a-zA-Z0-9]`).MatchString(password)
+	if !hasSpecial {
+		s.logger.Debug("Password validation failed", "reason", "no_special_chars")
+		return ErrInvalidPassword
+	}
+
 	return nil
 }
 

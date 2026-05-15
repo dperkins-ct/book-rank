@@ -5,6 +5,7 @@ import {
   BookOpenIcon,
   PlusIcon,
   ScaleIcon,
+  TrophyIcon,
   HeartIcon,
   UserGroupIcon,
 } from '@heroicons/react/24/outline'
@@ -15,6 +16,7 @@ const navigation = [
   { name: 'My Books', href: '/books', icon: BookOpenIcon },
   { name: 'Add Book', href: '/books/add', icon: PlusIcon },
   { name: 'Compare Books', href: '/compare', icon: ScaleIcon },
+  { name: 'Rankings', href: '/rankings', icon: TrophyIcon },
   { name: 'Recommendations', href: '/recommendations', icon: HeartIcon },
   { name: 'Friends', href: '/friends', icon: UserGroupIcon },
 ]

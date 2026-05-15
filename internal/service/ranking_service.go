@@ -10,27 +10,37 @@ import (
 
 // RankingService handles business logic for ranking operations
 type RankingService struct {
-	rankingRepo repository.RankingRepository
-	eloService  *ELOService
+	rankingRepo    repository.RankingRepository
+	comparisonRepo repository.ComparisonRepository
+	eloService     *ELOService
+	bookRankRating *BookRankRatingService
 }
 
 // NewRankingService creates a new RankingService
-func NewRankingService(rankingRepo repository.RankingRepository, eloService *ELOService) *RankingService {
+func NewRankingService(rankingRepo repository.RankingRepository, comparisonRepo repository.ComparisonRepository, eloService *ELOService) *RankingService {
+	bookRankRating := NewBookRankRatingService(eloService)
 	return &RankingService{
-		rankingRepo: rankingRepo,
-		eloService:  eloService,
+		rankingRepo:    rankingRepo,
+		comparisonRepo: comparisonRepo,
+		eloService:     eloService,
+		bookRankRating: bookRankRating,
 	}
 }
 
 // RankingStats represents statistical information about a user's rankings
 type RankingStats struct {
-	TotalBooks      int     `json:"total_books"`
-	AverageRating   float64 `json:"average_rating"`
-	HighestRating   int     `json:"highest_rating"`
-	LowestRating    int     `json:"lowest_rating"`
-	RatingSpread    int     `json:"rating_spread"`
-	BooksAboveStart int     `json:"books_above_starting_rating"`
-	BooksBelowStart int     `json:"books_below_starting_rating"`
+	TotalBooks       int     `json:"total_books"`
+	AverageRating    float64 `json:"average_rating"`
+	HighestRating    float64 `json:"highest_rating"`
+	LowestRating     float64 `json:"lowest_rating"`
+	RatingSpread     float64 `json:"rating_spread"`
+	BooksAboveStart  int     `json:"books_above_starting_rating"`
+	BooksBelowStart  int     `json:"books_below_starting_rating"`
+	ComparisonsMade  int     `json:"comparisons_made"`
+	// BookRank-specific fields (0-10 scale)
+	HighestBookRank  float64 `json:"highest_bookrank"`
+	LowestBookRank   float64 `json:"lowest_bookrank"`
+	AverageBookRank  float64 `json:"average_bookrank"`
 }
 
 // GetUserRankings retrieves all rankings for a specific user
@@ -50,18 +60,38 @@ func (s *RankingService) GetUserRankingStats(userID uint) (*RankingStats, error)
 		return nil, err
 	}
 
+	// Get comparison count
+	comparisons, err := s.comparisonRepo.GetByUserID(userID)
+	if err != nil {
+		return nil, err
+	}
+
 	if len(rankings) == 0 {
-		return &RankingStats{}, nil
+		return &RankingStats{
+			ComparisonsMade: len(comparisons),
+		}, nil
 	}
 
 	startingRating := s.eloService.GetStartingRating()
+
+	// Collect ELO ratings for dynamic range adjustment
+	eloRatings := make([]int, len(rankings))
+	for i, ranking := range rankings {
+		eloRatings[i] = ranking.Score
+	}
+
+	// Adjust the BookRank range based on actual user data
+	s.bookRankRating.AdjustELORangeBasedOnUserData(eloRatings)
+
 	stats := &RankingStats{
-		TotalBooks:    len(rankings),
-		HighestRating: rankings[0].Score, // Already sorted by score DESC
-		LowestRating:  rankings[len(rankings)-1].Score,
+		TotalBooks:      len(rankings),
+		HighestRating:   float64(rankings[0].Score), // Already sorted by score DESC
+		LowestRating:    float64(rankings[len(rankings)-1].Score),
+		ComparisonsMade: len(comparisons),
 	}
 
 	totalScore := 0
+	var totalBookRank float64
 	for _, ranking := range rankings {
 		totalScore += ranking.Score
 		if ranking.Score > startingRating {
@@ -69,10 +99,19 @@ func (s *RankingService) GetUserRankingStats(userID uint) (*RankingStats, error)
 		} else if ranking.Score < startingRating {
 			stats.BooksBelowStart++
 		}
+
+		// Calculate BookRank values
+		bookRankScore := s.bookRankRating.ConvertELOToBookRank(ranking.Score)
+		totalBookRank += bookRankScore
 	}
 
 	stats.AverageRating = float64(totalScore) / float64(len(rankings))
 	stats.RatingSpread = stats.HighestRating - stats.LowestRating
+
+	// BookRank stats
+	stats.HighestBookRank = s.bookRankRating.ConvertELOToBookRank(rankings[0].Score)
+	stats.LowestBookRank = s.bookRankRating.ConvertELOToBookRank(rankings[len(rankings)-1].Score)
+	stats.AverageBookRank = totalBookRank / float64(len(rankings))
 
 	return stats, nil
 }

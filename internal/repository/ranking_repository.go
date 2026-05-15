@@ -12,6 +12,7 @@ type RankingRepository interface {
 	GetByUserAndBook(userID, bookID uint) (*models.Ranking, error)
 	Update(ranking *models.Ranking) error
 	GetTopRanked(userID uint, limit int) ([]*models.Ranking, error)
+	GetAllByBookID(bookID uint) ([]*models.Ranking, error)
 	GetAllUserRankings() (map[uint][]*models.Ranking, error)
 	GetUsersByGenre(genre string) ([]uint, error)
 	GetAverageRatingByGenre(userID uint) (map[string]float64, error)
@@ -68,6 +69,15 @@ func (r *rankingRepository) GetTopRanked(userID uint, limit int) ([]*models.Rank
 		Where("user_id = ?", userID).
 		Order("score DESC").
 		Limit(limit).
+		Find(&rankings).Error
+	return rankings, err
+}
+
+// GetAllByBookID retrieves all rankings for a specific book across all users
+func (r *rankingRepository) GetAllByBookID(bookID uint) ([]*models.Ranking, error) {
+	var rankings []*models.Ranking
+	err := r.db.Preload("User").
+		Where("book_id = ?", bookID).
 		Find(&rankings).Error
 	return rankings, err
 }

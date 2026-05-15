@@ -91,6 +91,19 @@ export const ratingsAPI = {
   },
 
   getRandomBookPair: () => api.get('/api/comparisons/random-pair'),
+
+  // Rankings API
+  getMyRankings: () => api.get('/api/rankings/me'),
+  getTopRankings: (params = {}) => {
+    const searchParams = new URLSearchParams(params)
+    return api.get(`/api/rankings/top?${searchParams.toString()}`)
+  },
+  getRankingStats: () => api.get('/api/rankings/stats'),
+  getRankingPosition: (bookId) => api.get(`/api/rankings/position/${bookId}`),
+  compareRankings: (bookAId, bookBId) =>
+    api.get(`/api/rankings/compare?book_a=${bookAId}&book_b=${bookBId}`),
+  initializeRanking: (bookId) => api.post('/api/rankings/initialize', { book_id: bookId }),
+  bulkInitializeRankings: (bookIds) => api.post('/api/rankings/initialize', { book_ids: bookIds }),
 }
 
 // Recommendations API

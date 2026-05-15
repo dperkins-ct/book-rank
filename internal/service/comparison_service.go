@@ -56,14 +56,13 @@ func (s *ComparisonService) SubmitComparison(req *ComparisonRequest) (*Compariso
 		return nil, err
 	}
 
-	// Check if comparison already exists
+	// Check if comparison already exists - if so, we'll update it instead of creating new
 	existing, err := s.comparisonRepo.GetByUserAndBooks(req.UserID, req.BookAID, req.BookBID)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("failed to check existing comparison: %w", err)
 	}
-	if existing != nil {
-		return nil, errors.New("comparison already exists for these books")
-	}
+
+	isUpdate := existing != nil
 
 	// Get current rankings for both books
 	rankingA, err := s.getOrCreateRanking(req.UserID, req.BookAID)
@@ -82,16 +81,28 @@ func (s *ComparisonService) SubmitComparison(req *ComparisonRequest) (*Compariso
 		return nil, fmt.Errorf("failed to calculate ELO update: %w", err)
 	}
 
-	// Create comparison record
-	comparison := &models.Comparison{
-		UserID:     req.UserID,
-		BookAID:    req.BookAID,
-		BookBID:    req.BookBID,
-		Preference: req.Preference,
-	}
+	// Create or update comparison record
+	var comparison *models.Comparison
+	if isUpdate {
+		// Update existing comparison
+		comparison = existing
+		comparison.Preference = req.Preference
 
-	if err := s.comparisonRepo.Create(comparison); err != nil {
-		return nil, fmt.Errorf("failed to create comparison: %w", err)
+		if err := s.comparisonRepo.Update(comparison); err != nil {
+			return nil, fmt.Errorf("failed to update comparison: %w", err)
+		}
+	} else {
+		// Create new comparison
+		comparison = &models.Comparison{
+			UserID:     req.UserID,
+			BookAID:    req.BookAID,
+			BookBID:    req.BookBID,
+			Preference: req.Preference,
+		}
+
+		if err := s.comparisonRepo.Create(comparison); err != nil {
+			return nil, fmt.Errorf("failed to create comparison: %w", err)
+		}
 	}
 
 	// Update rankings with new ELO ratings

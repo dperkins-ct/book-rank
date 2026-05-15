@@ -26,7 +26,7 @@ func NewServices(repos *repository.Repositories, cache cache.Cache) *Services {
 	return &Services{
 		User:         NewUserService(repos.User),
 		Book:         NewBookService(repos.Book),
-		Ranking:      NewRankingService(repos.Ranking, eloService),
+		Ranking:      NewRankingService(repos.Ranking, repos.Comparison, eloService),
 		Auth:         NewAuthService(repos.User),
 		External:     NewExternalAPIService(),
 		Recommendation: NewRecommendationService(repos.Ranking, repos.Book, cache, cacheTTL),

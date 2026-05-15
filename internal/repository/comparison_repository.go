@@ -8,6 +8,7 @@ import (
 // ComparisonRepository defines the interface for comparison data operations
 type ComparisonRepository interface {
 	Create(comparison *models.Comparison) error
+	Update(comparison *models.Comparison) error
 	GetByUserID(userID uint) ([]*models.Comparison, error)
 	GetByUserAndBooks(userID, bookAID, bookBID uint) (*models.Comparison, error)
 	GetUserComparisonsForBook(userID, bookID uint) ([]*models.Comparison, error)
@@ -34,6 +35,11 @@ func NewComparisonRepository(db *gorm.DB) ComparisonRepository {
 // Create creates a new comparison in the database
 func (r *comparisonRepository) Create(comparison *models.Comparison) error {
 	return r.db.Create(comparison).Error
+}
+
+// Update updates an existing comparison in the database
+func (r *comparisonRepository) Update(comparison *models.Comparison) error {
+	return r.db.Save(comparison).Error
 }
 
 // GetByUserID retrieves all comparisons for a specific user

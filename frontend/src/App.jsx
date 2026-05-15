@@ -14,6 +14,7 @@ import BookLibraryPage from './pages/books/BookLibraryPage'
 import BookDetailsPage from './pages/books/BookDetailsPage'
 import AddBookPage from './pages/books/AddBookPage'
 import ComparisonPage from './pages/books/ComparisonPage'
+import RankingsPage from './pages/books/RankingsPage'
 import RecommendationsPage from './pages/recommendations/RecommendationsPage'
 import FriendsPage from './pages/friends/FriendsPage'
 
@@ -36,6 +37,7 @@ function App() {
                   <Route path="/books/:id" element={<BookDetailsPage />} />
                   <Route path="/books/add" element={<AddBookPage />} />
                   <Route path="/compare" element={<ComparisonPage />} />
+                  <Route path="/rankings" element={<RankingsPage />} />
                   <Route path="/recommendations" element={<RecommendationsPage />} />
                   <Route path="/friends" element={<FriendsPage />} />
                 </Route>

@@ -22,7 +22,10 @@
       "Bash(curl *)",
       "Bash(pkill -9 -f \"./server\")",
       "Bash(pkill -f \"bookrank\")",
-      "Bash(pkill *)"
+      "Bash(pkill *)",
+      "Bash(make start *)",
+      "Bash(jq)",
+      "Bash(echo \"✅ Backend: $\\(curl -s http://localhost:8080/health)"
     ]
   }
 }

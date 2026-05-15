@@ -11,6 +11,7 @@ import (
 	"bookrank/internal/api/book"
 	"bookrank/internal/api/comparison"
 	"bookrank/internal/api/middleware"
+	"bookrank/internal/api/ranking"
 	"bookrank/internal/api/recommendation"
 	"bookrank/internal/repository"
 	"bookrank/internal/service"
@@ -80,6 +81,7 @@ func addRoutes(
 	bookHandler := book.NewHandlers(services.Book)
 	comparisonHandler := comparison.NewHandler(services.Comparison)
 	recommendationHandler := recommendation.NewHandler(services.Recommendation)
+	rankingHandler := ranking.NewHandler(services.Ranking)
 
 	// Middleware
 	authMiddleware := middleware.NewAuthMiddleware(authService, logger)
@@ -126,9 +128,25 @@ func addRoutes(
 	booksRouter.HandleFunc("/{id:[0-9]+}/stats", bookHandler.GetBookStats).Methods("GET")
 	booksRouter.HandleFunc("/{id:[0-9]+}/metadata", bookHandler.RefreshMetadata).Methods("POST")
 
-	// Rankings routes (placeholder for future implementation)
-	v1Router.Handle("/rankings", notImplementedHandler(logger)).Methods("GET", "POST")
-	v1Router.Handle("/rankings/{id}", notImplementedHandler(logger)).Methods("GET", "PUT", "DELETE")
+	// Rankings routes
+	rankingsRouter := protectedRouter.PathPrefix("/rankings").Subrouter()
+	rankingsRouter.HandleFunc("/me", rankingHandler.GetMyRankings).Methods("GET")
+	rankingsRouter.HandleFunc("/top", rankingHandler.GetTopRanked).Methods("GET")
+	rankingsRouter.HandleFunc("/stats", rankingHandler.GetRankingStats).Methods("GET")
+	rankingsRouter.HandleFunc("/position/{bookId:[0-9]+}", rankingHandler.GetRankingPosition).Methods("GET")
+	rankingsRouter.HandleFunc("/compare", rankingHandler.CompareRankings).Methods("GET")
+	rankingsRouter.HandleFunc("/initialize", rankingHandler.InitializeRanking).Methods("POST")
+	rankingsRouter.HandleFunc("/user/{userId:[0-9]+}", rankingHandler.GetUserRankings).Methods("GET")
+
+	// Rankings routes (also under v1 for future compatibility)
+	v1RankingsRouter := v1Router.PathPrefix("/rankings").Subrouter()
+	v1RankingsRouter.HandleFunc("/me", rankingHandler.GetMyRankings).Methods("GET")
+	v1RankingsRouter.HandleFunc("/top", rankingHandler.GetTopRanked).Methods("GET")
+	v1RankingsRouter.HandleFunc("/stats", rankingHandler.GetRankingStats).Methods("GET")
+	v1RankingsRouter.HandleFunc("/position/{bookId:[0-9]+}", rankingHandler.GetRankingPosition).Methods("GET")
+	v1RankingsRouter.HandleFunc("/compare", rankingHandler.CompareRankings).Methods("GET")
+	v1RankingsRouter.HandleFunc("/initialize", rankingHandler.InitializeRanking).Methods("POST")
+	v1RankingsRouter.HandleFunc("/user/{userId:[0-9]+}", rankingHandler.GetUserRankings).Methods("GET")
 
 	// Comparisons routes (also under v1 for future compatibility)
 	v1ComparisonsRouter := v1Router.PathPrefix("/comparisons").Subrouter()

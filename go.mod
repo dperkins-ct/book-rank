@@ -1,6 +1,6 @@
 module bookrank
 
-go 1.22
+go 1.25.0
 
 require (
 	github.com/go-redis/redis/v8 v8.11.5
@@ -24,6 +24,6 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/mattn/go-sqlite3 v1.14.17 // indirect
-	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 )

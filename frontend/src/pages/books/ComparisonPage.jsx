@@ -11,38 +11,31 @@ import { booksAPI, ratingsAPI } from '../../services/api'
 import { useBooks } from '../../context/BookContext'
 import Button from '../../components/common/Button'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
-import Modal from '../../components/common/Modal'
 import { formatRating, getRatingBadgeColor } from '../../utils/formatters'
 
 function ComparisonPage() {
   const location = useLocation()
   const { comparison, startComparison, endComparison } = useBooks()
 
-  const [books, setBooks] = useState([])
   const [loading, setLoading] = useState(true)
   const [comparing, setComparing] = useState(false)
-  const [showBookSelector, setShowBookSelector] = useState(false)
-  const [selectingFor, setSelectingFor] = useState(null) // 'A' or 'B'
   const [comparisonHistory, setComparisonHistory] = useState([])
 
   useEffect(() => {
-    loadBooks()
+    loadRandomBookPair()
     loadComparisonHistory()
-
-    // Handle preselected book from navigation state
-    const preselectedBook = location.state?.preselectedBook
-    if (preselectedBook && !comparison.bookA && !comparison.bookB) {
-      startComparison(preselectedBook, null)
-    }
   }, [])
 
-  const loadBooks = async () => {
+  const loadRandomBookPair = async () => {
     try {
       setLoading(true)
-      const response = await booksAPI.getBooks({ limit: 100 })
-      setBooks(response.data.books || [])
+      const response = await ratingsAPI.getRandomBookPair()
+      const bookPair = response.data.book_pair
+      if (bookPair) {
+        startComparison(bookPair.book_a, bookPair.book_b)
+      }
     } catch (error) {
-      console.error('Error loading books:', error)
+      console.error('Error loading random book pair:', error)
     } finally {
       setLoading(false)
     }
@@ -57,20 +50,6 @@ function ComparisonPage() {
     }
   }
 
-  const selectBook = (position) => {
-    setSelectingFor(position)
-    setShowBookSelector(true)
-  }
-
-  const handleBookSelect = (book) => {
-    if (selectingFor === 'A') {
-      startComparison(book, comparison.bookB)
-    } else {
-      startComparison(comparison.bookA, book)
-    }
-    setShowBookSelector(false)
-    setSelectingFor(null)
-  }
 
   const handleComparison = async (winner) => {
     if (!comparison.bookA || !comparison.bookB) return
@@ -98,21 +77,7 @@ function ComparisonPage() {
   }
 
   const selectNextComparison = () => {
-    if (books.length < 2) return
-
-    // Simple random selection for now
-    // In a real app, you might want more intelligent selection
-    const availableBooks = books.filter(book =>
-      book.id !== comparison.bookA?.id && book.id !== comparison.bookB?.id
-    )
-
-    if (availableBooks.length >= 2) {
-      const bookA = availableBooks[Math.floor(Math.random() * availableBooks.length)]
-      const remainingBooks = availableBooks.filter(book => book.id !== bookA.id)
-      const bookB = remainingBooks[Math.floor(Math.random() * remainingBooks.length)]
-
-      startComparison(bookA, bookB)
-    }
+    loadRandomBookPair()
   }
 
   const resetComparison = () => {
@@ -203,7 +168,7 @@ function ComparisonPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-8">
+      <div className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size="lg" />
       </div>
     )
@@ -216,8 +181,9 @@ function ComparisonPage() {
         <ScaleIcon className="h-12 w-12 text-primary-600 mx-auto mb-4" />
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Book Comparison</h1>
         <p className="text-gray-600 max-w-2xl mx-auto">
-          Compare books side by side to help build your personal ranking system.
-          Choose which book you prefer, and we'll use this data to create personalized recommendations.
+          We'll show you two random books to compare. Choose which book you prefer, or skip pairs
+          you don't want to compare. Your preferences help us build a personalized ranking system
+          and create better recommendations for you.
         </p>
       </div>
 
@@ -244,54 +210,36 @@ function ComparisonPage() {
             />
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <BookCard
-              book={comparison.bookA}
-              label="Book A"
-              onSelect={() => selectBook('A')}
-            />
-            <BookCard
-              book={comparison.bookB}
-              label="Book B"
-              onSelect={() => selectBook('B')}
-            />
+          <div className="flex flex-col items-center justify-center py-8">
+            <LoadingSpinner size="lg" />
+            <p className="text-gray-600 mt-4">Loading books for comparison...</p>
           </div>
         )}
 
         {/* Controls */}
-        <div className="flex justify-center space-x-4 mt-8">
-          {comparison.bookA && comparison.bookB ? (
-            <>
-              <Button
-                onClick={selectNextComparison}
-                variant="secondary"
-                disabled={comparing}
-              >
-                <ArrowPathIcon className="h-4 w-4 mr-2" />
-                Next Comparison
-              </Button>
-              <Button
-                onClick={resetComparison}
-                variant="secondary"
-                disabled={comparing}
-              >
-                Start Over
-              </Button>
-            </>
-          ) : (
+        {comparison.bookA && comparison.bookB && (
+          <div className="flex justify-center space-x-4 mt-8">
             <Button
               onClick={selectNextComparison}
-              disabled={books.length < 2}
+              variant="secondary"
+              disabled={comparing}
             >
               <ArrowPathIcon className="h-4 w-4 mr-2" />
-              Random Comparison
+              Skip This Pair
             </Button>
-          )}
-        </div>
+            <Button
+              onClick={resetComparison}
+              variant="outline"
+              disabled={comparing}
+            >
+              Reset
+            </Button>
+          </div>
+        )}
 
         {comparing && (
-          <div className="text-center mt-4">
-            <LoadingSpinner size="sm" className="mx-auto" />
+          <div className="flex flex-col items-center justify-center mt-4">
+            <LoadingSpinner size="sm" />
             <p className="text-sm text-gray-500 mt-2">Recording your preference...</p>
           </div>
         )}
@@ -323,29 +271,6 @@ function ComparisonPage() {
         </div>
       )}
 
-      {/* Book Selection Modal */}
-      <Modal
-        isOpen={showBookSelector}
-        onClose={() => setShowBookSelector(false)}
-        title={`Select Book ${selectingFor}`}
-        size="lg"
-      >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
-          {books.map((book) => (
-            <button
-              key={book.id}
-              onClick={() => handleBookSelect(book)}
-              className="p-4 text-left border rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <div className="font-medium">{book.title}</div>
-              <div className="text-sm text-gray-600">{book.author}</div>
-              {book.genre && (
-                <div className="text-xs text-gray-500 mt-1">{book.genre}</div>
-              )}
-            </button>
-          ))}
-        </div>
-      </Modal>
     </div>
   )
 }

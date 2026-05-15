@@ -36,37 +36,59 @@ func NewRouter(db *gorm.DB, authService *authService.AuthService, logger *slog.L
 	}
 }
 
-// SetupRoutes configures all routes and middleware
-func (rt *Router) SetupRoutes() *mux.Router {
-	router := mux.NewRouter()
+// NewServer creates a new HTTP server following the documented pattern
+func NewServer(
+	db *gorm.DB,
+	authService *authService.AuthService,
+	logger *slog.Logger,
+	cache cache.Cache,
+) http.Handler {
+	mux := mux.NewRouter()
+	addRoutes(
+		mux,
+		db,
+		authService,
+		logger,
+		cache,
+	)
 
-	// Create middleware instances
-	authMiddleware := middleware.NewAuthMiddleware(rt.authService, rt.logger)
-	loggingMiddleware := middleware.NewLoggingMiddleware(rt.logger)
-	rateLimitMiddleware := middleware.NewRateLimitMiddleware(100, rt.logger) // 100 requests per minute
+	// Apply middleware
+	var handler http.Handler = mux
+	handler = middleware.CORS(middleware.DefaultCORSConfig())(handler)
+	handler = middleware.NewLoggingMiddleware(logger).LogRequests(handler)
+	handler = middleware.NewRateLimitMiddleware(100, logger).LimitByUser(handler)
 
+	return handler
+}
+
+// addRoutes maps the entire API surface in one place following the documented pattern
+func addRoutes(
+	router *mux.Router,
+	db *gorm.DB,
+	authService *authService.AuthService,
+	logger *slog.Logger,
+	cache cache.Cache,
+) {
 	// Initialize repositories
-	repos := repository.NewRepositories(rt.db)
+	repos := repository.NewRepositories(db)
 
 	// Initialize services
-	services := service.NewServices(repos, rt.cache)
+	services := service.NewServices(repos, cache)
 
 	// Create handlers
-	authHandler := auth.NewAuthHandler(rt.db, rt.authService, rt.logger)
+	authHandler := auth.NewAuthHandler(db, authService, logger)
 	bookHandler := book.NewHandlers(services.Book)
 	comparisonHandler := comparison.NewHandler(services.Comparison)
 	recommendationHandler := recommendation.NewHandler(services.Recommendation)
 
-	// Global middleware (applied to all routes)
-	router.Use(middleware.CORS(middleware.DefaultCORSConfig()))
-	router.Use(loggingMiddleware.LogRequests)
-	router.Use(rateLimitMiddleware.LimitByUser)
+	// Middleware
+	authMiddleware := middleware.NewAuthMiddleware(authService, logger)
 
 	// Root endpoint
-	router.HandleFunc("/", rt.rootHandler).Methods("GET")
+	router.Handle("/", rootHandler(logger)).Methods("GET")
 
 	// Health endpoint (no auth required)
-	router.HandleFunc("/health", rt.healthHandler).Methods("GET")
+	router.Handle("/health", healthHandler(db, logger)).Methods("GET")
 
 	// Authentication routes (no auth required)
 	authRouter := router.PathPrefix("/auth").Subrouter()
@@ -91,6 +113,7 @@ func (rt *Router) SetupRoutes() *mux.Router {
 	comparisonsRouter.HandleFunc("/book/{bookId:[0-9]+}", comparisonHandler.GetBookComparisons).Methods("GET")
 	comparisonsRouter.HandleFunc("/recalculate", comparisonHandler.RecalculateRatings).Methods("POST")
 	comparisonsRouter.HandleFunc("/onboarding-status", comparisonHandler.CheckOnboardingStatus).Methods("GET")
+	comparisonsRouter.HandleFunc("/random-pair", comparisonHandler.GetRandomBookPair).Methods("GET")
 
 	// Books routes
 	booksRouter := protectedRouter.PathPrefix("/books").Subrouter()
@@ -104,8 +127,8 @@ func (rt *Router) SetupRoutes() *mux.Router {
 	booksRouter.HandleFunc("/{id:[0-9]+}/metadata", bookHandler.RefreshMetadata).Methods("POST")
 
 	// Rankings routes (placeholder for future implementation)
-	v1Router.HandleFunc("/rankings", rt.notImplementedHandler).Methods("GET", "POST")
-	v1Router.HandleFunc("/rankings/{id}", rt.notImplementedHandler).Methods("GET", "PUT", "DELETE")
+	v1Router.Handle("/rankings", notImplementedHandler(logger)).Methods("GET", "POST")
+	v1Router.Handle("/rankings/{id}", notImplementedHandler(logger)).Methods("GET", "PUT", "DELETE")
 
 	// Comparisons routes (also under v1 for future compatibility)
 	v1ComparisonsRouter := v1Router.PathPrefix("/comparisons").Subrouter()
@@ -116,6 +139,7 @@ func (rt *Router) SetupRoutes() *mux.Router {
 	v1ComparisonsRouter.HandleFunc("/book/{bookId:[0-9]+}", comparisonHandler.GetBookComparisons).Methods("GET")
 	v1ComparisonsRouter.HandleFunc("/recalculate", comparisonHandler.RecalculateRatings).Methods("POST")
 	v1ComparisonsRouter.HandleFunc("/onboarding-status", comparisonHandler.CheckOnboardingStatus).Methods("GET")
+	v1ComparisonsRouter.HandleFunc("/random-pair", comparisonHandler.GetRandomBookPair).Methods("GET")
 
 	// Recommendations routes
 	recommendationsRouter := v1Router.PathPrefix("/recommendations").Subrouter()
@@ -124,59 +148,66 @@ func (rt *Router) SetupRoutes() *mux.Router {
 	recommendationsRouter.HandleFunc("/similar/{bookId:[0-9]+}", recommendationHandler.GetSimilarBooks).Methods("GET")
 	recommendationsRouter.HandleFunc("/refresh", recommendationHandler.RefreshRecommendations).Methods("POST")
 	recommendationsRouter.HandleFunc("/stats", recommendationHandler.GetRecommendationStats).Methods("GET")
-
-	return router
 }
 
-// healthHandler handles health check requests
-func (rt *Router) healthHandler(w http.ResponseWriter, r *http.Request) {
-	// Check database connection
-	sqlDB, err := rt.db.DB()
-	if err != nil {
-		rt.logger.Error("Failed to get database connection", "error", err)
-		http.Error(w, "Database connection failed", http.StatusServiceUnavailable)
-		return
-	}
 
-	if err := sqlDB.Ping(); err != nil {
-		rt.logger.Error("Database ping failed", "error", err)
-		http.Error(w, "Database ping failed", http.StatusServiceUnavailable)
-		return
-	}
+// healthHandler handles health check requests following the documented handler pattern
+func healthHandler(db *gorm.DB, logger *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check database connection
+		sqlDB, err := db.DB()
+		if err != nil {
+			logger.Error("Failed to get database connection", "error", err)
+			http.Error(w, "Database connection failed", http.StatusServiceUnavailable)
+			return
+		}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status": "healthy", "service": "bookrank"}`))
+		if err := sqlDB.Ping(); err != nil {
+			logger.Error("Database ping failed", "error", err)
+			http.Error(w, "Database ping failed", http.StatusServiceUnavailable)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status": "healthy", "service": "bookrank"}`))
+	})
 }
 
-// rootHandler handles root endpoint requests
-func (rt *Router) rootHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{
-		"service": "BookRank API",
-		"version": "1.0.0",
-		"description": "Book ranking and recommendation system",
-		"endpoints": {
-			"health": "/health",
-			"auth": {
-				"register": "/auth/register",
-				"login": "/auth/login",
-				"refresh": "/auth/refresh"
+// rootHandler handles root endpoint requests following the documented handler pattern
+func rootHandler(logger *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		logger.Info("Root endpoint accessed", "method", r.Method, "path", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"service": "BookRank API",
+			"version": "1.0.0",
+			"description": "Book ranking and recommendation system",
+			"endpoints": {
+				"health": "/health",
+				"auth": {
+					"register": "/auth/register",
+					"login": "/auth/login",
+					"refresh": "/auth/refresh"
+				},
+				"api": {
+					"books": "/api/v1/books",
+					"recommendations": "/api/v1/recommendations",
+					"user": "/api/me"
+				}
 			},
-			"api": {
-				"books": "/api/v1/books",
-				"recommendations": "/api/v1/recommendations",
-				"user": "/api/me"
-			}
-		},
-		"documentation": "See API_DOCUMENTATION.md for complete API reference"
-	}`))
+			"documentation": "See API_DOCUMENTATION.md for complete API reference"
+		}`))
+	})
 }
 
-// notImplementedHandler returns a not implemented response
-func (rt *Router) notImplementedHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusNotImplemented)
-	w.Write([]byte(`{"error": "Not Implemented", "message": "This endpoint is not yet implemented", "code": 501}`))
+// notImplementedHandler returns a not implemented response following the documented pattern
+func notImplementedHandler(logger *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		logger.Info("Not implemented endpoint accessed", "method", r.Method, "path", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotImplemented)
+		w.Write([]byte(`{"error": "Not Implemented", "message": "This endpoint is not yet implemented", "code": 501}`))
+	})
 }

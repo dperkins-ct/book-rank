@@ -4,7 +4,9 @@ import (
 	"bookrank/internal/api/middleware"
 	"bookrank/internal/models"
 	"bookrank/internal/service"
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -222,5 +224,39 @@ func (h *Handler) CheckOnboardingStatus(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"onboarding_complete": isComplete,
 		"user_id":            userID,
+	})
+}
+
+// GetRandomBookPair handles GET /api/comparisons/random-pair
+func (h *Handler) GetRandomBookPair(w http.ResponseWriter, r *http.Request) {
+	// Get user from context
+	claims, ok := middleware.GetUserFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID := claims.UserID
+
+	bookPair, err := h.comparisonService.GetRandomBookPairWithContext(r.Context(), userID)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return // Request was cancelled
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if bookPair == nil {
+		// No book pairs available - return empty result with 200 status
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"book_pair": nil,
+			"message":   "No book pairs available for comparison",
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"book_pair": bookPair,
 	})
 }

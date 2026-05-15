@@ -73,18 +73,21 @@ func (r *comparisonRepository) GetUserComparisonsForBook(userID, bookID uint) ([
 func (r *comparisonRepository) GetPendingComparisons(userID uint, limit int) ([]PendingComparison, error) {
 	var pending []PendingComparison
 
-	// Find books that the user has ranked but not compared against each other
+	// Find books that the user has access to but not compared against each other
+	// Use EXISTS instead of CROSS JOIN for better performance
 	query := `
-		SELECT DISTINCT b1.id as book_a_id, b1.title as book_a_title, b1.author as book_a_author, b1.genre as book_a_genre,
-		                b2.id as book_b_id, b2.title as book_b_title, b2.author as book_b_author, b2.genre as book_b_genre
-		FROM books b1
-		CROSS JOIN books b2
-		INNER JOIN rankings r1 ON b1.id = r1.book_id AND r1.user_id = ?
-		INNER JOIN rankings r2 ON b2.id = r2.book_id AND r2.user_id = ?
-		LEFT JOIN comparisons c ON c.user_id = ?
-		    AND ((c.book_a_id = b1.id AND c.book_b_id = b2.id) OR (c.book_a_id = b2.id AND c.book_b_id = b1.id))
+		SELECT b1.id as book_a_id, b1.title as book_a_title, b1.author as book_a_author, b1.genre as book_a_genre,
+		       b2.id as book_b_id, b2.title as book_b_title, b2.author as book_b_author, b2.genre as book_b_genre
+		FROM books b1, books b2
 		WHERE b1.id < b2.id -- Avoid duplicate pairs and self-comparison
-		  AND c.id IS NULL   -- No existing comparison
+		  AND b1.created_by = ? -- User created book A
+		  AND b2.created_by = ? -- User created book B
+		  AND NOT EXISTS (
+		      SELECT 1 FROM comparisons c
+		      WHERE c.user_id = ?
+		        AND ((c.book_a_id = b1.id AND c.book_b_id = b2.id)
+		          OR (c.book_a_id = b2.id AND c.book_b_id = b1.id))
+		  )
 		ORDER BY RANDOM()
 		LIMIT ?
 	`

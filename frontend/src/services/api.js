@@ -89,6 +89,8 @@ export const ratingsAPI = {
     const searchParams = new URLSearchParams(params)
     return api.get(`/api/rankings?${searchParams.toString()}`)
   },
+
+  getRandomBookPair: () => api.get('/api/comparisons/random-pair'),
 }
 
 // Recommendations API

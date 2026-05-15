@@ -23,6 +23,12 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	// Load .env file if it exists
 	if err := godotenv.Load(); err != nil {
 		// Only log if it's not "file not found" - allow running without .env
@@ -34,7 +40,7 @@ func main() {
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		return err
 	}
 
 	// Setup logger
@@ -45,33 +51,32 @@ func main() {
 	db, err := setupDatabase(cfg, logger)
 	if err != nil {
 		logger.Error("Failed to connect to database", "error", err)
-		os.Exit(1)
+		return err
 	}
 
 	// Run database migrations
 	if err := runMigrations(db, logger); err != nil {
 		logger.Error("Failed to run database migrations", "error", err)
-		os.Exit(1)
+		return err
 	}
 
 	// Initialize Redis cache
 	redisCache, err := setupRedisCache(cfg, logger)
 	if err != nil {
 		logger.Error("Failed to setup Redis cache", "error", err)
-		os.Exit(1)
+		return err
 	}
 
 	// Initialize services
 	authService := auth.NewAuthService(cfg.Auth.JWTSecret, logger)
 
-	// Setup router
-	router := api.NewRouter(db, authService, logger, redisCache)
-	httpRouter := router.SetupRoutes()
+	// Setup server using NewServer constructor pattern
+	httpHandler := api.NewServer(db, authService, logger, redisCache)
 
 	// Create HTTP server
 	server := &http.Server{
 		Addr:         cfg.GetServerAddress(),
-		Handler:      httpRouter,
+		Handler:      httpHandler,
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
 		IdleTimeout:  cfg.Server.IdleTimeout,
@@ -82,7 +87,6 @@ func main() {
 		logger.Info("Server starting", "address", cfg.GetServerAddress())
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("Server failed to start", "error", err)
-			os.Exit(1)
 		}
 	}()
 
@@ -99,10 +103,11 @@ func main() {
 
 	if err := server.Shutdown(ctx); err != nil {
 		logger.Error("Server forced to shutdown", "error", err)
-		os.Exit(1)
+		return err
 	}
 
 	logger.Info("Server exited")
+	return nil
 }
 
 // setupLogger configures the structured logger

@@ -3,6 +3,7 @@ package service
 import (
 	"bookrank/internal/models"
 	"bookrank/internal/repository"
+	"context"
 	"errors"
 	"fmt"
 	"gorm.io/gorm"
@@ -265,6 +266,41 @@ func (s *ComparisonService) getOrCreateRanking(userID, bookID uint) (*models.Ran
 	}
 
 	return ranking, nil
+}
+
+// GetRandomBookPair returns two random books that haven't been compared by the user
+func (s *ComparisonService) GetRandomBookPair(userID uint) (*repository.PendingComparison, error) {
+	pending, err := s.comparisonRepo.GetPendingComparisons(userID, 1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pending comparisons: %w", err)
+	}
+
+	if len(pending) == 0 {
+		return nil, nil // Return nil without error when no pairs available
+	}
+
+	return &pending[0], nil
+}
+
+// GetRandomBookPairWithContext returns two random books that haven't been compared by the user with context support
+func (s *ComparisonService) GetRandomBookPairWithContext(ctx context.Context, userID uint) (*repository.PendingComparison, error) {
+	// Check if context is cancelled before proceeding
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	pending, err := s.comparisonRepo.GetPendingComparisons(userID, 1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pending comparisons: %w", err)
+	}
+
+	if len(pending) == 0 {
+		return nil, nil // Return nil without error when no pairs available
+	}
+
+	return &pending[0], nil
 }
 
 // isValidPreference checks if the preference is valid

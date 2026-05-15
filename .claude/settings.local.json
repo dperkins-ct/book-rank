@@ -20,7 +20,9 @@
       "Bash(pkill -f server)",
       "Bash(curl -s -X OPTIONS -H \"Origin: http://localhost:3000\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: Content-Type\" http://localhost:8080/auth/register -I)",
       "Bash(curl *)",
-      "Bash(pkill -9 -f \"./server\")"
+      "Bash(pkill -9 -f \"./server\")",
+      "Bash(pkill -f \"bookrank\")",
+      "Bash(pkill *)"
     ]
   }
 }
